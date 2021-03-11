@@ -32,11 +32,8 @@ bool _instanceof( T )( ref TypeInfo_Class info )
 
     // scan in width
     // 1. same level
-    writeln( "    : ", T.stringof, ": ", info.interfaces );
-    writeln( "    : ", T.stringof, ": ", info );
     foreach( iface; info.interfaces )
     {
-        writeln( "      : ", iface.classinfo.name );
         if ( iface.classinfo.name == T.classinfo.name )
             return true;
     }
@@ -44,7 +41,6 @@ bool _instanceof( T )( ref TypeInfo_Class info )
     // 2. step in deep
     foreach( iface; info.interfaces )
     {
-        writeln( "      : ", iface.classinfo.name );
         if ( _instanceof!T( iface.classinfo ) )
             return true;
     }
@@ -54,12 +50,10 @@ bool _instanceof( T )( ref TypeInfo_Class info )
 
 
 /** */
-bool instanceof( T, TO )( TO o )
+bool instanceof( T )( Object o )
   if ( is( T == interface ) || is( T == class ) )
 {
     import std.stdio : writeln;
-
-    writeln( "  : ", o.classinfo.name );
 
     if ( o.classinfo.name == T.classinfo.name )
         return true;

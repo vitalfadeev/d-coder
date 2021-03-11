@@ -7,42 +7,48 @@ import ui;
 /** */
 interface IO
 {
-    IVo[] vos();
-    void om( IVo vo );
-    void un( IVo vo );
+    Object[] vos();
+    T om( T : Object )( T vo );
+    void un( Object vo );
 }
 
 
 /** */
-mixin template O()
+class O : IO
 {
-    IVo[] _vos;
-    //void*[] _vos;
+    Object[] _vos;
 
 
     /** */
-    IVo[] vos()
+    Object[] vos()
     {
-        return cast( IVo[] ) _vos;
+        return _vos;
     }
 
 
     /** */
-    void om( IVo vo )
+    T om( T : Object )( T vo )
     {
-        _vos ~= vo;
+        assert( vo !is null );
 
-        if ( vo.o !is null )
+        // uno
+        if ( ( cast( IVo ) vo ).o !is null )
         {
-            vo.uno();
+            ( cast( IVo ) vo ).uno();
         }
 
-        vo.o = this;
+        // om
+        _vos ~= vo;
+
+        // vo
+        ( cast( IVo ) vo ).o = this;
+
+        return vo;
     }
 
 
     /** */
-    void un( IVo vo )
+    void un( Object vo )
     {
         import std.algorithm.searching : countUntil;
         import std.array               : replaceInPlace;
@@ -51,7 +57,7 @@ mixin template O()
         auto pos = _vos.countUntil( vo );
 
         if ( pos != -1 )
-            _vos.replaceInPlace( pos, pos+1, cast( IVo[] ) [] );
+            _vos.replaceInPlace( pos, pos+1, cast( Object[] ) [] );
     }
 }
 

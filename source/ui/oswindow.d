@@ -21,8 +21,10 @@ enum DWORD STYLE_MASK                = ( STYLE_FULLSCREEN | STYLE_BORDERLESS | S
 class OSWindow : IRas
 {
     /** */
-    this()
+    this( int cd, int gh )
     {
+        _cd = cd;
+        _gh = gh;
         _createOSWindowClass();
         _createOSWindow();
     }
@@ -31,7 +33,36 @@ class OSWindow : IRas
     /** */
     IPen pen()
     {
-        return new OSWindowPen( hdc );
+        return new OSWindowPen( this );
+    }
+
+
+    /** */
+    //void sdsh( Point base )
+    //{
+    //    SetWindowOrgEx( _hdc, -base.d, base.h, NULL );
+    //}
+
+
+    /** */
+    void ot( Point praot, int d, int h )
+    {
+        _ot.d = praot.d +  d;
+        _ot.h = praot.h + -h;
+    }
+
+
+    /** */
+    Point ot()
+    {
+        return _ot;
+    }
+
+
+    /** */
+    Size cdgh()
+    {
+        return Size( _cd, _gh );
     }
 
 
@@ -39,11 +70,20 @@ class OSWindow : IRas
     void clear() nothrow
     {
         RECT crect;
-        GetClientRect( hwnd, &crect );
+        crect.left   = 0;
+        crect.top    = 0;
+        crect.right  = _cd;
+        crect.bottom = _gh;
 
+        //try {
+            //writeln( crect );
+        //} catch ( Throwable e ) { assert( 0, e.toString() ); }
+
+        // Color
         HBRUSH brush = CreateSolidBrush( RGB( 0x00, 0x00, 0x0 ) );
 
-        FillRect( hdc, &crect, brush );
+        // Rect
+        FillRect( _hdc, &crect, brush );
 
         DeleteObject( brush );
     }
@@ -99,7 +139,7 @@ class OSWindow : IRas
     HWND _createOSWindow()
     {
         // Bordered Rectamgle
-        RECT wrect = { 100, 100, 400, 300 };
+        RECT wrect = { 100, 100, 100 + _cd, 100 + _gh };
         AdjustWindowRectEx( &wrect, style, false, styleEx );
 
         //
@@ -121,6 +161,7 @@ class OSWindow : IRas
 
         _rememberWindow( hwnd, this );
 
+        // Show
         ShowWindow( hwnd, SW_NORMAL );
         UpdateWindow( hwnd );
 
@@ -131,9 +172,12 @@ class OSWindow : IRas
 private:
     WNDCLASS wc;
     HWND     hwnd;
-    HDC      hdc;
+    HDC      _hdc;
     DWORD    style = STYLE_NORMAL | STYLE_RESIZABLE;
     DWORD    styleEx = 0;
+    int      _cd;
+    int      _gh;
+    Point    _ot;
 
 
     // BackBuefer
@@ -142,7 +186,7 @@ private:
         RECT crect;
         GetClientRect( hwnd, &crect );
 
-        auto backBuffer = new BackBuffer( hdc, crect.right, crect.bottom );
+        auto backBuffer = new BackBuffer( _hdc, crect.right, crect.bottom );
 
         return backBuffer;
     }
@@ -208,7 +252,8 @@ private:
                         auto testRenderStartTime = t.currTime;
                     }
 
-                    window.hdc = BeginPaint( hwnd, &ps );
+                    window._hdc = BeginPaint( hwnd, &ps );
+
 
 ////find update area
 //GetUpdateRect(hWnd, &rClientRect, 0);
@@ -218,31 +263,50 @@ private:
 //BitBlt(ps.hdc, rClientRect.left,  rClientRect.top,  rClientRect.right -  rClientRect.left,  rClientRect.bottom - rClientRect.top,
 //  hdcScreen, rClientRect.left,  rClientRect.top, SRCCOPY);
     
-                    version( DoubleBuffer )
+                    version ( DoubleBuffer )
                     {
                         auto backBuffer = window.createBackBuffer();
+
+                        try {
+                            auto p = Point( backBuffer._cd / 2, backBuffer._gh / 2 );
+                            backBuffer.ot( p, 0, 0 );
+                        } catch ( Throwable e ) { assert( 0, e.toString() ); }
 
                         // Drawing
                         backBuffer.clear();
 
                         try {
-                            root.vid( backBuffer );
+                            //root.set();
+                            //root.vid( backBuffer );
+                            import ui.mag : set;
+                            import ui.mag : vid;
+                            set();
+                            vid( backBuffer );
                         } catch ( Throwable e ) { assert( 0, e.toString() ); }
 
 
                         // Transfer the off-screen DC to the screen
                         backBuffer.blt( window );
+
+                        backBuffer.removeBackbuffer();
                     }
                     else
                     {
-                        RECT crect;
-                        GetClientRect( hwnd, &crect );
+                        //    +1
+                        // -1  . +1
+                        //    -1
+                        SetGraphicsMode( window._hdc, GM_ADVANCED );
+                        try {
+                            auto p = Point( window._cd / 2, window._gh / 2 );
+                            window.ot( p, 0, 0 );
+                        } catch ( Throwable e ) { assert( 0, e.toString() ); }
 
                         // Drawing
                         window.clear();
 
                         try {
-                            root.vid( *window );
+                            //root.vid( *window );
+                            //vidPipe.vid( *window );
                         } catch ( Throwable e ) { assert( 0, e.toString() ); }
                     }
 
@@ -261,25 +325,40 @@ private:
                 //case WM_SYSKEYDOWN: 
                 //    goto case WM_KEYDOWN;
 
-                //case WM_KEYDOWN: {
-                //    try {
-                //        KeyEvent event = { hwnd, message, wParam, lParam };
-                //        emit!"onKeyDown"( window, event );
-                //    } catch ( Throwable e ) { assert( 0, e.toString() ); }
-                //    return 0;
-                //}
+                case WM_KEYDOWN: {
+                    try {
+                        KeyboardKeyEvent event = { hwnd, message, wParam, lParam };
+                        //root.process( event );
+                        //emit!"onKeyDown"( window, event );
+                    } catch ( Throwable e ) { assert( 0, e.toString() ); }
+                    return 0;
+                }
                     
-                //case WM_LBUTTONDOWN : {
-                //    try {
-                //        MouseKeyEvent event = { hwnd, message, wParam, lParam };
-                //        auto curObject = window.objectAtPoint( event.point );
-                //        if ( curObject !is null )
-                //        {
-                //            window.callHierarhically!( "onLeftMouseDown" )( curObject, event );
-                //        }
-                //    } catch ( Throwable e ) { assert( 0, e.toString() ); }
-                //    return 0;
-                //}
+                case WM_LBUTTONDOWN: {
+                    try {
+                        MouseKeyEvent event = { hwnd, message, wParam, lParam };
+                        event.ras = *window;
+
+                        // center
+                        auto cdgh = window.cdgh();
+                        event.to.d =    GET_X_LPARAM( lParam ) - cdgh.cd / 2;
+                        event.to.h = -( GET_Y_LPARAM( lParam ) - cdgh.gh / 2 );
+                        
+                        //
+                        processMouseKey( event );
+
+                        // update window
+                        InvalidateRect( hwnd, NULL, 0 );
+                        //UpdateWindow( hwnd );
+
+                        //auto curObject = root.objectAtPoint( event.point );
+                        //if ( curObject !is null )
+                        //{
+                        //    window.callHierarhically!( "onLeftMouseDown" )( curObject, event );
+                        //}
+                    } catch ( Throwable e ) { assert( 0, e.toString() ); }
+                    return 0;
+                }
                     
                 //case WM_RBUTTONDOWN : {
                 //    try {
@@ -307,25 +386,26 @@ private:
                 //    return 0;
                 //}
                     
-                //case WM_MOUSEMOVE: {
-                //    try {
-                //        MouseMoveEvent event = { hwnd, message, wParam, lParam };
-                //        //auto curObject = window.objectAtPointVSB( event.point );
-                //        auto curObject = window.objectAtPoint( event.point );
-                //        if ( curObject !is null )
-                //        {
-                //            //// hoverColor
-                //            //foreach( obj; window.hovers )
-                //            //{
-                //            //    obj.redraw();
-                //            //}
-                //            //window.hovers = [];
-                //            //window.hovers ~= curObject;
-                //            window.callHierarhically!( "onMouseMove" )( curObject, event );
-                //        }
-                //    } catch ( Throwable e ) { assert( 0, e.toString() ); }
-                //    return 0;
-                //}
+                case WM_MOUSEMOVE: {
+                    try {
+                        MouseMoveEvent event = { hwnd, message, wParam, lParam };
+                        event.ras = *window;
+
+                        // center
+                        auto cdgh = window.cdgh();
+                        event.to.d =    GET_X_LPARAM( lParam ) - cdgh.cd / 2;
+                        event.to.h = -( GET_Y_LPARAM( lParam ) - cdgh.gh / 2 );
+                        
+                        //
+                        processMouseMove( event );
+
+                        // update window
+                        InvalidateRect( hwnd, NULL, 0 );
+                        //UpdateWindow( hwnd );
+
+                    } catch ( Throwable e ) { assert( 0, e.toString() ); }
+                    return 0;
+                }
                     
                 //case WM_MOUSEWHEEL: {
                 //    try {
@@ -407,9 +487,10 @@ private:
 /** */
 class OSWindowPen : IPen
 {
-    this( HDC hdc ) nothrow
+    this( OSWindow ras ) nothrow
     {
-        _hdc = hdc;
+        this.ras  = ras;
+        this._hdc = ras._hdc;
     }
 
 
@@ -419,44 +500,245 @@ class OSWindowPen : IPen
     }
 
 
-    void cursTo( int cd, int gh )
+    void ra( Ra ra )
     {
-        MoveToEx( _hdc, cd, gh, NULL );
+        this.ra( ra, 3 );
     }
 
 
-    void lineTo( int cd, int gh )
+    void ra( Ra ra, int cd )
     {
-        LineTo( _hdc, cd, gh );
+        HPEN hpen = CreatePen( PS_SOLID, cd, ra.windowsCOLORREF );
+        auto prePen = SelectObject( _hdc, hpen );
+        DeleteObject( prePen );
+    }
+
+
+    void to( int d, int h )
+    {
+        Point p = ras.ot + Point( d, h );
+        MoveToEx( _hdc, p.d, p.h, NULL );
+    }
+
+
+    void lineTo( int d, int h )
+    {
+        Point p = ras.ot + Point( d, h );
+        LineTo( _hdc, p.d, p.h );
     }
 
 
     void rectangle( int cd, int gh )
     {
+        // Center ot the Vid
+        Point p = ras.ot;
+
+        // top left
+        Point point = p - Point( cd / 2, gh / 2 );
+
+        SetPolyFillMode( _hdc, WINDING );
+        auto brush = CreateSolidBrush( RGB( 0xCC, 0xCC, 0xCC ) );
+        auto oldBrush = SelectObject( _hdc, brush ); 
+
         // rectangle cd x gh
-        lineTo( -cd,   0 ); 
-        lineTo(   0,  gh );
-        lineTo(  cd,   0 );
-        lineTo(   0, -gh );
+        Point[5] points;
+        points[0] = point + Point(  0,  0 );  // start
+        points[1] = point + Point( cd,  0 );  // to right
+        points[2] = point + Point( cd, gh );  // to bottom
+        points[3] = point + Point(  0, gh );  // to left
+        points[4] = point + Point(  0,  0 );  // to top
+        Polyline( _hdc, cast( POINT* ) points.ptr, 5 );
+
+        //MoveToEx( _hdc, 0, 0, NULL );
+        //LineTo( _hdc, 100, 100 );
     }
 
 
-    ref int cd()
+    void rectangleFilled( int cd, int gh, Ra ra )
+    {
+        // Center ot the Vid
+        Point p = ras.ot;
+
+        // top left
+        Point point = p - Point( cd / 2, gh / 2 );
+
+        // rectangle cd x gh
+        Point[5] points;
+        points[0] = point + Point(  0,  0 );  // start
+        points[1] = point + Point( cd,  0 );  // to right
+        points[2] = point + Point( cd, gh );  // to bottom
+        points[3] = point + Point(  0, gh );  // to left
+        points[4] = point + Point(  0,  0 );  // to top
+
+        // Fill Mode
+        SetPolyFillMode( _hdc, WINDING );
+        auto brush = CreateSolidBrush( ra.windowsCOLORREF );
+        auto oldBrush = SelectObject( _hdc, brush ); 
+
+        // 
+        Polygon( _hdc, cast( POINT* ) points.ptr, 5 );
+
+        // 
+        SelectObject( _hdc, oldBrush ); 
+        DeleteObject( brush);
+
+        //MoveToEx( _hdc, 0, 0, NULL );
+        //LineTo( _hdc, 100, 100 );
+    }
+
+
+    void rectangleFilled( int c, int h, int d, int g, Ra ra )
+    {
+        import std.math : abs;
+
+        // Center ot the Vid
+        Point point = ras.ot;
+
+        // rectangle cd x gh
+        Point[5] points;
+        points[0] = point + Point( c, -h );  // start
+        points[1] = point + Point( d, -h );  // to right
+        points[2] = point + Point( d, -g );  // to bottom
+        points[3] = point + Point( c, -g );  // to left
+        points[4] = point + Point( c, -h );  // to top
+
+        // Fill Mode
+        SetPolyFillMode( _hdc, WINDING );
+        auto brush = CreateSolidBrush( ra.windowsCOLORREF );
+        auto oldBrush = SelectObject( _hdc, brush ); 
+
+        // 
+        //Polyline( _hdc, points.ptr, 5 );
+        Polygon( _hdc, cast( POINT* ) points.ptr, 5 );
+
+        // 
+        SelectObject( _hdc, oldBrush ); 
+        DeleteObject( brush);
+    }
+
+
+    void font( string name, uint size )
+    {
+        //
+    }
+
+
+    void text( string s, int cd, int gh, ref TextSet textSet )
+    {
+        _text_nowrap( s, cd, gh, textSet );
+    }
+
+
+    void _text_nowrap( string s, int cd, int gh, ref TextSet textSet )
+    {
+        import std.encoding : codePoints;
+        import std.range    : lockstep;
+        import ui.text      : LineSet;
+
+        textSet.cdghs.length = s.length;
+
+        int cur_c = 0;
+        int cur_d = 0;
+        int cur_g = 0;
+        int cur_h = 0;
+        int next_d = 0;
+        int next_g = 0;
+
+        int text_c = 0;
+        int text_d = 0;
+        int text_g = 0;
+        int text_h = 0;
+        size_t charsCount = 0;
+
+        string line;
+        int line_c = 0;
+        int line_d = 0;
+        int line_g = 0;
+        int line_h = 0;
+        size_t lineStart = 0;
+
+        Size charcdgh;
+        auto rectPtr = textSet.cdghs.ptr;
+
+        foreach ( i, c; s.codePoints )
+        {
+            // char cd, gh
+            _fontCharCDGH( cast( wchar ) c, charcdgh );
+
+            next_d = cur_c + charcdgh.cd;
+            next_g = cur_h - charcdgh.gh;
+
+            // limit
+            // wrap
+            if ( next_d > cd )
+            {
+                // trim char rects
+                textSet.cdghs.length = charsCount;
+                // line
+                line = s[ lineStart .. i ];
+                line_d = cur_d;
+                line_g = cur_g;
+                textSet.lines ~= LineSet( line, line_c, line_d, line_g, line_h );
+                // text
+                text_d = max( text_d, line_d );
+                text_g = line_g;
+                textSet.c  = text_c;
+                textSet.d  = text_d;
+                textSet.cd = text_d - text_c;
+                textSet.g  = text_g;
+                textSet.h  = text_h;
+                textSet.gh = text_h - text_g;
+                break;
+            }
+
+            //
+            cur_g = cur_h - charcdgh.gh;
+            cur_d = cur_c - charcdgh.cd;
+
+            // save char c, d, g, h
+            rectPtr.c = cur_c;
+            rectPtr.d = cur_d;
+            rectPtr.g = cur_g;
+            rectPtr.h = cur_h;
+
+            // update cursor
+            cur_c = cur_d;
+            cur_h = cur_g;
+
+            charsCount += 1;
+            rectPtr += 1;
+        }
+    }
+
+
+    void _text_wrap_char( string s, int cd, int gh, ref TextSet textSet )
+    {
+        //
+    }
+
+
+    ref uint cd()
     {
         return _cd;
     }
 
 
-    ref int gh()
+    ref uint gh()
     {
         return _gh;
     }
 
 
+    OSWindow ras;
 private:
-    int _cd;
-    int _gh;
-    HDC _hdc;
+    uint     _cd;
+    uint     _gh;
+    HDC      _hdc;
+
+    void _fontCharCDGH( wchar wc, ref Size cdgh )
+    {
+        GetTextExtentPoint32( _hdc, cast( LPWSTR ) &wc, 1, &cdgh.windowsSIZE );
+    }
 }
 
 
@@ -466,13 +748,28 @@ class BackBuffer : IRas
     /** */
     this( HDC hdc, int cd, int gh ) nothrow
     {
-        _hdc                = CreateCompatibleDC( hdc );
-        backBufferBitmap    = CreateCompatibleBitmap( hdc, cd, gh );
-        oldBackBufferBitmap = SelectObject( hdc, backBufferBitmap );
-
         _cd = cd;
         _gh = gh;
-        _pen = new OSWindowPen( _hdc );
+
+        //try {
+        //    writeln( cd );
+        //    writeln( gh );
+        //} catch ( Throwable e ) { assert( 0, e.toString() ); }
+
+        //
+        _hdc                = CreateCompatibleDC( hdc );
+        backBufferBitmap    = CreateCompatibleBitmap( hdc, cd, gh );
+        oldBackBufferBitmap = SelectObject( _hdc, backBufferBitmap );
+
+        //    +1
+        // -1  . +1
+        //    -1
+        SetGraphicsMode( _hdc, GM_ADVANCED );
+        _ot.d = cd / 2;
+        _ot.h = gh / 2;
+
+        //
+        _pen = new BackBufferPen( this );
     }
 
 
@@ -484,7 +781,29 @@ class BackBuffer : IRas
 
 
     /** */
-    void clear()
+    void ot( Point praot, int d, int h )
+    {
+        _ot.d = praot.d +  d;
+        _ot.h = praot.h + -h;
+    }
+
+
+    /** */
+    Point ot()
+    {
+        return _ot;
+    }
+
+
+    /** */
+    Size cdgh()
+    {
+        return Size( _cd, _gh );
+    }
+
+
+    /** */
+    void clear() nothrow
     {
         RECT rect;
         rect.right  = _cd;
@@ -500,9 +819,9 @@ class BackBuffer : IRas
 
 
     // Transfer the off-screen DC to the screen
-    void blt( HDC hdc ) nothrow
+    void blt( OSWindow* window ) nothrow
     {
-        BitBlt( hdc, 0, 0, _cd, _gh, _hdc, 0, 0, SRCCOPY );
+        BitBlt( window._hdc, 0, 0, _cd, _gh, _hdc, 0, 0, SRCCOPY );
     }
 
 
@@ -515,15 +834,16 @@ class BackBuffer : IRas
     }    
 
 
+    HDC   _hdc;
 private:
-    HDC  _hdc;
-    uint _cd;
-    uint _gh;
+    uint  _cd;
+    uint  _gh;
+    Point _ot;
 
     HDC  oldBackBufferBitmap;
     HDC  backBufferBitmap;
 
-    OSWindowPen _pen;
+    BackBufferPen _pen;
 }
 
 
@@ -537,3 +857,155 @@ void emit( string method, T, ARGS... )( T This, ARGS args )
 }
 
 
+
+/** */
+class BackBufferPen : IPen
+{
+    this( BackBuffer ras ) nothrow
+    {
+        this._ras = ras;
+        this._hdc = ras._hdc;
+    }
+
+
+    void init()
+    {
+        //
+    }
+
+
+    void ra( Ra ra )
+    {
+        this.ra( ra, 3 );
+    }
+
+
+    void ra( Ra ra, int cd )
+    {
+        HPEN hpen = CreatePen( PS_SOLID, cd, ra.windowsCOLORREF );
+        auto prePen = SelectObject( _hdc, hpen );
+        DeleteObject( prePen );
+    }
+
+
+    void to( int d, int h )
+    {
+        Point p = _ras.ot + Point( d, h );
+        MoveToEx( _hdc, p.d, p.h, NULL );
+    }
+
+
+    void lineTo( int d, int h )
+    {
+        Point p = _ras.ot + Point( d, h );
+        LineTo( _hdc, p.d, p.h );
+    }
+
+
+    void rectangle( int cd, int gh )
+    {
+        // Center ot the Vid
+        Point p = _ras.ot;
+
+        // top left
+        Point point = p - Point( cd / 2, gh / 2 );
+
+        SetPolyFillMode( _hdc, WINDING );
+        auto brush = CreateSolidBrush( RGB( 0xCC, 0xCC, 0xCC ) );
+        auto oldBrush = SelectObject( _hdc, brush ); 
+
+        // rectangle cd x gh
+        Point[5] points;
+        points[0] = point + Point(  0,  0 );  // start
+        points[1] = point + Point( cd,  0 );  // to right
+        points[2] = point + Point( cd, gh );  // to bottom
+        points[3] = point + Point(  0, gh );  // to left
+        points[4] = point + Point(  0,  0 );  // to top
+        Polyline( _hdc, cast( POINT* ) points.ptr, 5 );
+    }
+
+
+    void rectangleFilled( int cd, int gh, Ra ra )
+    {
+        // Center ot the Vid
+        Point p = _ras.ot;
+
+        // top left
+        Point point = p - Point( cd / 2, gh / 2 );
+
+        // rectangle cd x gh
+        Point[5] points;
+        points[0] = point + Point(  0,  0 );  // start
+        points[1] = point + Point( cd,  0 );  // to right
+        points[2] = point + Point( cd, gh );  // to bottom
+        points[3] = point + Point(  0, gh );  // to left
+        points[4] = point + Point(  0,  0 );  // to top
+
+        // Fill Mode
+        SetPolyFillMode( _hdc, WINDING );
+        auto brush = CreateSolidBrush( ra.windowsCOLORREF );
+        auto oldBrush = SelectObject( _hdc, brush ); 
+
+        // 
+        Polygon( _hdc, cast( POINT* ) points.ptr, 5 );
+
+        // 
+        SelectObject( _hdc, oldBrush ); 
+        DeleteObject( brush);
+    }
+
+
+    void rectangleFilled( int c, int h, int d, int g, Ra ra )
+    {
+        import std.math : abs;
+
+        // Center ot the Vid
+        Point point = _ras.ot;
+
+        // rectangle cd x gh
+        Point[5] points;
+        points[0] = point + Point( c, -h );  // start
+        points[1] = point + Point( d, -h );  // to right
+        points[2] = point + Point( d, -g );  // to bottom
+        points[3] = point + Point( c, -g );  // to left
+        points[4] = point + Point( c, -h );  // to top
+
+        // Fill Mode
+        SetPolyFillMode( _hdc, WINDING );
+        auto brush = CreateSolidBrush( ra.windowsCOLORREF );
+        auto oldBrush = SelectObject( _hdc, brush ); 
+
+        // 
+        //Polyline( _hdc, points.ptr, 5 );
+        Polygon( _hdc, cast( POINT* ) points.ptr, 5 );
+
+        // 
+        SelectObject( _hdc, oldBrush ); 
+        DeleteObject( brush);
+    }
+
+
+    void text( string s, int cd, int gh, ref TextSet textSet )
+    {
+        //
+    }
+
+
+    ref uint cd()
+    {
+        return _cd;
+    }
+
+
+    ref uint gh()
+    {
+        return _gh;
+    }
+
+
+private:
+    uint _cd;
+    uint _gh;
+    HDC  _hdc;
+    BackBuffer _ras;
+}

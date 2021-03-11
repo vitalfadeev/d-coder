@@ -1,4 +1,4 @@
-module ui.color;
+module ui.ra;
 
 import core.sys.windows.windows : COLORREF;
 import core.sys.windows.windows : RGB;
@@ -7,11 +7,11 @@ import std.stdio                : writefln;
 
 
 /** */
-struct Color
+struct Ra
 {
     union
     {
-         COLORREF native;
+         COLORREF windowsCOLORREF;
          struct
         {
             ubyte r;
@@ -39,19 +39,19 @@ struct Color
     pragma( inline )
     void opAssign( uint a )
     {
-        native = _rgb( a );
+        windowsCOLORREF = _rgb( a );
     }
 
 
     COLORREF opCast( T : COLORREF )()
     {
-        return native;
+        return windowsCOLORREF;
     }    
 
 
     string toString()
     {
-        return format!"Color( 0x%x )"( native );
+        return format!"Ra( 0x%x )"( windowsCOLORREF );
     }
 }
 
@@ -69,19 +69,19 @@ uint _rgb( uint a )
 
 
 /** */
-Color rgb( uint color )
+Ra rgb( uint ra )
 {
-    return Color( _rgb( color ) );
+    return Ra( _rgb( ra ) );
 }
 
 
 /** */
-Color argb( uint color )
+Ra argb( uint ra )
 {
-    Color c;
+    Ra c;
 
-    c.native = _rgb( color );
-    c.a      = ( color & 0xFF000000 ) >> 24;
+    c.windowsCOLORREF = _rgb( ra );
+    c.a               = ( ra & 0xFF000000 ) >> 24;
 
     return c;
 }
@@ -90,36 +90,36 @@ Color argb( uint color )
 ///
 unittest
 {
-    auto color = 0xAABBCC.rgb;
+    auto ra = 0xAABBCC.rgb;
 
-    assert( color.native == RGB( 0xAA, 0xBB, 0xCC ) );
+    assert( ra.windowsCOLORREF == RGB( 0xAA, 0xBB, 0xCC ) );
 
-    assert( color.b == 0xCC );
-    assert( color.g == 0xBB );
-    assert( color.r == 0xAA );
-    assert( color.a == 0xFF );
+    assert( ra.b == 0xCC );
+    assert( ra.g == 0xBB );
+    assert( ra.r == 0xAA );
+    assert( ra.a == 0xFF );
 }
 
 ///
 unittest
 {
-    auto color = 0xAABBCC.rgb;
-    assert( !color.isTransparent );
+    auto ra = 0xAABBCC.rgb;
+    assert( !ra.isTransparent );
 }
 
 //
 unittest
 {
-    auto color = ( 0x00AABBCC ).argb;
-    assert( color.native == RGB( 0xAA, 0xBB, 0xCC ) );
-    assert( color.isTransparent );
+    auto ra = ( 0x00AABBCC ).argb;
+    assert( ra.windowsCOLORREF == RGB( 0xAA, 0xBB, 0xCC ) );
+    assert( ra.isTransparent );
 }
 
 //
 unittest
 {
-    auto color = ( 0xFFAABBCC ).argb;
-    assert( color.native == RGB( 0xAA, 0xBB, 0xCC ) );
-    assert( !color.isTransparent );
+    auto ra = ( 0xFFAABBCC ).argb;
+    assert( ra.windowsCOLORREF == RGB( 0xAA, 0xBB, 0xCC ) );
+    assert( !ra.isTransparent );
 }
 

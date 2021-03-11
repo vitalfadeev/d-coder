@@ -7,19 +7,19 @@ import ui;
 /** */
 interface IVo
 {
-    ref IO o();
+    ref Object o();
     void uno();
 }
 
 
 /** */
-mixin template Vo()
+class Vo : O, IVo
 {
-    IO _o;
+    Object _o; // IO
 
 
     /** */
-    ref IO o()
+    ref Object o()
     {
         return _o;
     }
@@ -28,8 +28,7 @@ mixin template Vo()
     /** */
     void uno()
     {
-        _o.un( this );
+        ( cast( IO ) _o ).un( this );
     }
 }
-
 

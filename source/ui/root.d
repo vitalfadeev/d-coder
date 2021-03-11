@@ -4,26 +4,19 @@ import ui;
 
 
 /** */
-interface IRoot : IO
+interface IRoot : IVid, ISet, IO, IVo
 {
-    void vid( IRas ras );
+    //void set();
+    //void vid( IRas ras );
+    //void process( ref MouseKeyEvent event );
+    //void process( ref KeyboardKeyEvent event );
 }
 
 
 /** */
-class Root : IRoot
+class Root : Vid, IRoot
 {
-    mixin Members!();
-
-
-    /** */
-    override
-    void vid( IRas ras )
-    {
-        writeln( __FUNCTION__ );
-
-        vos.vid( ras );
-    }
+    //
 }
 
 

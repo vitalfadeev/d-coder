@@ -1,7 +1,7 @@
 module ui.value;
 
-import ui.color : Color;
-import ui.color : rgb;
+import ui.ra : Ra;
+import ui.ra : rgb;
 
 
 /** */
@@ -21,7 +21,7 @@ struct Value
         DisplaySelf   displaySelfValue;
         DisplayChilds displayChildsValue;
         Position      positionValue;
-        Color         colorValue;
+        Ra            raValue;
     }
 
 
@@ -105,10 +105,10 @@ struct Value
 
 
     pragma( inline )
-    void opAssign( Color a )
+    void opAssign( Ra a )
     {
-        type       = ValueType.Color;
-        colorValue = a;
+        type    = ValueType.Ra;
+        raValue = a;
     }
 
 
@@ -139,9 +139,9 @@ struct Value
 
 
 /** */
-struct ColorValue
+struct RaValue
 {
-    Value v = { type: ValueType.Color, colorValue: 0x444444.rgb };
+    Value v = { type: ValueType.Ra, raValue: 0x444444.rgb };
     alias v this;
 
 
@@ -155,16 +155,16 @@ struct ColorValue
     pragma( inline )
     void opAssign( uint a )
     {
-        type       = ValueType.Color;
-        colorValue = a.rgb;
+        type    = ValueType.Ra;
+        raValue = a.rgb;
     }
 
 
     pragma( inline )
-    void opAssign( Color a )
+    void opAssign( Ra a )
     {
-        type       = ValueType.Color;
-        colorValue = a;
+        type    = ValueType.Ra;
+        raValue = a;
     }
 }
 
@@ -280,7 +280,7 @@ enum ValueType
     DisplaySelf,
     DisplayChilds,
     Position,
-    Color,
+    Ra,
 }
 
 

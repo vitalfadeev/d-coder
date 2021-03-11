@@ -1,25 +1,30 @@
 module ui.pen;
 
-//import ui;
+import ui;
 
 
 /** */
 interface IPen
 {
     void init();
-    void cursTo( int cd, int gh );
+    void ra( Ra ra );
+    void ra( Ra ra, int cd );
+    void to( int cd, int gh );
     void lineTo( int cd, int gh );
     void rectangle( int cd, int gh );
-    ref int cd();
-    ref int gh();
+    void rectangleFilled( int cd, int gh, Ra ra );
+    void rectangleFilled( int c, int h, int d, int g, Ra ra );
+    void text( string s, int cd, int gh, ref TextSet textSet );
+    ref uint cd();
+    ref uint gh();
 }
 
 
 /** */
 class Pen : IPen
 {
-    int _cd;
-    int _gh;
+    uint _cd;
+    uint _gh;
 
 
     void init() 
@@ -27,8 +32,20 @@ class Pen : IPen
         //
     }
 
+
+    void ra( Ra ra )
+    {
+        //
+    }
+
     
-    void cursTo( int cd, int gh ) 
+    void ra( Ra ra, int cd )
+    {
+        //
+    }
+
+    
+    void to( int cd, int gh ) 
     {
         //
     }
@@ -46,13 +63,31 @@ class Pen : IPen
     }
 
 
-    ref int cd() 
+    void rectangleFilled( int cd, int gh, Ra ra )
+    {
+        //
+    }
+
+
+    void rectangleFilled( int c, int h, int d, int g, Ra ra )
+    {
+        //
+    }
+
+
+    void text( string s, int cd, int gh, ref TextSet textSet )
+    {
+        //
+    }
+
+
+    ref uint cd() 
     { 
         return _cd; 
     }
 
 
-    ref int gh() 
+    ref uint gh() 
     { 
         return _gh; 
     }
