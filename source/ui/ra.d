@@ -11,13 +11,13 @@ struct Ra
 {
     union
     {
-         COLORREF windowsCOLORREF;
-         struct
+        struct
         {
             ubyte r;
             ubyte g;
             ubyte b;
         }
+        COLORREF windowsCOLORREF;
     }
     ubyte a = 0xFF; // 0x00 - transparent, 0xFF - opaque
 
@@ -57,33 +57,39 @@ struct Ra
 
 
 
-uint _rgb( uint a )
+uint _rgb( uint x )
 {
     return 
         cast( uint ) ( 
-            ( ( a & 0x000000FF ) << 16 )  |  
-            ( ( a & 0x0000FF00 ) )  |  
-            ( ( a & 0x00FF0000 ) >> 16 ) 
+            ( ( x & 0x000000FF ) << 16 )  |  
+            ( ( x & 0x0000FF00 ) )  |  
+            ( ( x & 0x00FF0000 ) >> 16 ) 
         );    
 }
 
 
 /** */
-Ra rgb( uint ra )
+Ra rgb( uint x )
 {
-    return Ra( _rgb( ra ) );
+    return 
+        Ra( 
+            ( x & 0x00FF0000 ) >> 16,  // R
+            ( x & 0x0000FF00 ) >> 8,   // G
+            ( x & 0x000000FF )         // B
+        );
 }
 
 
 /** */
-Ra argb( uint ra )
+Ra argb( uint x )
 {
-    Ra c;
-
-    c.windowsCOLORREF = _rgb( ra );
-    c.a               = ( ra & 0xFF000000 ) >> 24;
-
-    return c;
+    return 
+        Ra(
+            ( x & 0x00FF0000 ) >> 16, // R
+            ( x & 0x0000FF00 ) >> 8,  // G
+            ( x & 0x000000FF ),       // B
+            //a: ( x & 0xFF000000 ) >> 24  // A
+        );
 }
 
 

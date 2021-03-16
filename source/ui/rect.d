@@ -7,7 +7,6 @@ struct Rect
 {
     union
     {
-        RECT windowsRECT;
         struct
         {
             int c;
@@ -15,6 +14,7 @@ struct Rect
             int d;
             int g;
         }
+        RECT windowsRECT;
     }
 
 

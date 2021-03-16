@@ -16,6 +16,7 @@ enum DWORD STYLE_NORMAL              = ( WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU
 enum DWORD STYLE_RESIZABLE           = ( WS_THICKFRAME | WS_MAXIMIZEBOX );
 enum DWORD STYLE_MASK                = ( STYLE_FULLSCREEN | STYLE_BORDERLESS | STYLE_NORMAL | STYLE_RESIZABLE );
 
+enum WPARAM IDT_TIMER1 = WM_USER + 1;
 
 /** */
 class OSWindow : IRas
@@ -27,6 +28,7 @@ class OSWindow : IRas
         _gh = gh;
         _createOSWindowClass();
         _createOSWindow();
+        _setTimer();
     }
 
 
@@ -169,6 +171,18 @@ class OSWindow : IRas
     }
 
 
+    /** */
+    void _setTimer()
+    {
+        SetTimer( 
+            hwnd,
+            IDT_TIMER1,
+            5,
+            cast ( TIMERPROC ) NULL 
+        );
+    }
+
+
 private:
     WNDCLASS wc;
     HWND     hwnd;
@@ -183,10 +197,7 @@ private:
     // BackBuefer
     BackBuffer createBackBuffer() nothrow
     {
-        RECT crect;
-        GetClientRect( hwnd, &crect );
-
-        auto backBuffer = new BackBuffer( _hdc, crect.right, crect.bottom );
+        auto backBuffer = new BackBuffer( _hdc, _cd, _gh );
 
         return backBuffer;
     }
@@ -265,19 +276,19 @@ private:
     
                     version ( DoubleBuffer )
                     {
-                        auto backBuffer = window.createBackBuffer();
+                        scope auto backBuffer = window.createBackBuffer();
 
+                        // Clear
+                        backBuffer.clear();
+
+                        // Center
                         try {
                             auto p = Point( backBuffer._cd / 2, backBuffer._gh / 2 );
                             backBuffer.ot( p, 0, 0 );
                         } catch ( Throwable e ) { assert( 0, e.toString() ); }
 
                         // Drawing
-                        backBuffer.clear();
-
                         try {
-                            //root.set();
-                            //root.vid( backBuffer );
                             import ui.mag : set;
                             import ui.mag : vid;
                             set();
@@ -328,8 +339,7 @@ private:
                 case WM_KEYDOWN: {
                     try {
                         KeyboardKeyEvent event = { hwnd, message, wParam, lParam };
-                        //root.process( event );
-                        //emit!"onKeyDown"( window, event );
+                        process( event );
                     } catch ( Throwable e ) { assert( 0, e.toString() ); }
                     return 0;
                 }
@@ -345,10 +355,10 @@ private:
                         event.to.h = -( GET_Y_LPARAM( lParam ) - cdgh.gh / 2 );
                         
                         //
-                        processMouseKey( event );
+                        process( event );
 
                         // update window
-                        InvalidateRect( hwnd, NULL, 0 );
+                        //InvalidateRect( hwnd, NULL, 0 );
                         //UpdateWindow( hwnd );
 
                         //auto curObject = root.objectAtPoint( event.point );
@@ -397,10 +407,10 @@ private:
                         event.to.h = -( GET_Y_LPARAM( lParam ) - cdgh.gh / 2 );
                         
                         //
-                        processMouseMove( event );
+                        process( event );
 
                         // update window
-                        InvalidateRect( hwnd, NULL, 0 );
+                        //InvalidateRect( hwnd, NULL, 0 );
                         //UpdateWindow( hwnd );
 
                     } catch ( Throwable e ) { assert( 0, e.toString() ); }
@@ -419,6 +429,16 @@ private:
                 //    } catch ( Throwable e ) { assert( 0, e.toString() ); }
                 //    return 0;
                 //}
+
+                case WM_TIMER: {
+                    if ( wParam == IDT_TIMER1 )
+                    {
+                        //InvalidateRect( hwnd, NULL, 0 );
+                        RedrawWindow( hwnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW );
+                    }
+                    break;
+                }
+
                     
                 //case WM_SIZE: {
                 //    try {
@@ -509,8 +529,8 @@ class OSWindowPen : IPen
     void ra( Ra ra, int cd )
     {
         HPEN hpen = CreatePen( PS_SOLID, cd, ra.windowsCOLORREF );
-        auto prePen = SelectObject( _hdc, hpen );
-        DeleteObject( prePen );
+        auto praPen = SelectObject( _hdc, hpen );
+        DeleteObject( praPen );
     }
 
 
@@ -531,26 +551,56 @@ class OSWindowPen : IPen
     void rectangle( int cd, int gh )
     {
         // Center ot the Vid
-        Point p = ras.ot;
+        Point ot = ras.ot;
 
-        // top left
-        Point point = p - Point( cd / 2, gh / 2 );
+        version ( Polyline )
+        {
+            // top left
+            Point point = ot - Point( cd / 2, gh / 2 );
 
-        SetPolyFillMode( _hdc, WINDING );
-        auto brush = CreateSolidBrush( RGB( 0xCC, 0xCC, 0xCC ) );
-        auto oldBrush = SelectObject( _hdc, brush ); 
+            SetPolyFillMode( _hdc, WINDING );
+            auto brush = CreateSolidBrush( GetDCPenColor( _hdc ) );
+            auto oldBrush = SelectObject( _hdc, brush ); 
 
-        // rectangle cd x gh
-        Point[5] points;
-        points[0] = point + Point(  0,  0 );  // start
-        points[1] = point + Point( cd,  0 );  // to right
-        points[2] = point + Point( cd, gh );  // to bottom
-        points[3] = point + Point(  0, gh );  // to left
-        points[4] = point + Point(  0,  0 );  // to top
-        Polyline( _hdc, cast( POINT* ) points.ptr, 5 );
+            // rectangle cd x gh
+            Point[5] points;
+            points[0] = point + Point(  0,  0 );  // start
+            points[1] = point + Point( cd,  0 );  // to right
+            points[2] = point + Point( cd, gh );  // to bottom
+            points[3] = point + Point(  0, gh );  // to left
+            points[4] = point + Point(  0,  0 );  // to top
+            Polyline( _hdc, cast( POINT* ) points.ptr, 5 );
+        }
+        else
+        {
+            RECT rect = { ot.d - cd/2, ot.h - gh/2, ot.d + cd/2, ot.h + gh/2 };
+            auto brush = CreateSolidBrush( GetDCPenColor( _hdc ) );
+            FrameRect( _hdc, &rect, brush );
+            DeleteObject( brush );
+        }
 
         //MoveToEx( _hdc, 0, 0, NULL );
         //LineTo( _hdc, 100, 100 );
+    }
+
+
+    void rectangle( int c, int h, int d, int g )
+    {
+        import std.math : abs;
+
+        // Center ot the Vid
+        Point point = ras.ot;
+
+        // rectangle cd x gh
+        Point[5] points;
+        points[0] = point + Point( c, -h );  // start
+        points[1] = point + Point( d, -h );  // to right
+        points[2] = point + Point( d, -g );  // to bottom
+        points[3] = point + Point( c, -g );  // to left
+        points[4] = point + Point( c, -h );  // to top
+
+        // 
+        Polyline( _hdc, cast( POINT* ) points.ptr, 5 );
     }
 
 
@@ -618,6 +668,12 @@ class OSWindowPen : IPen
 
 
     void font( string name, uint size )
+    {
+        //
+    }
+
+
+    void symbol( wchar wc, int c, int h, int d, int g )
     {
         //
     }
@@ -883,8 +939,8 @@ class BackBufferPen : IPen
     void ra( Ra ra, int cd )
     {
         HPEN hpen = CreatePen( PS_SOLID, cd, ra.windowsCOLORREF );
-        auto prePen = SelectObject( _hdc, hpen );
-        DeleteObject( prePen );
+        auto praPen = SelectObject( _hdc, hpen );
+        DeleteObject( praPen );
     }
 
 
@@ -905,53 +961,134 @@ class BackBufferPen : IPen
     void rectangle( int cd, int gh )
     {
         // Center ot the Vid
-        Point p = _ras.ot;
+        Point ot = _ras.ot;
 
-        // top left
-        Point point = p - Point( cd / 2, gh / 2 );
+        version ( Polyline )
+        {
+            // top left
+            Point p = ot - Point( cd / 2, gh / 2 );
 
-        SetPolyFillMode( _hdc, WINDING );
-        auto brush = CreateSolidBrush( RGB( 0xCC, 0xCC, 0xCC ) );
-        auto oldBrush = SelectObject( _hdc, brush ); 
+            SetPolyFillMode( _hdc, WINDING );
+            auto brush = CreateSolidBrush( GetDCPenColor( _hdc ) );
+            auto oldBrush = SelectObject( _hdc, brush ); 
 
-        // rectangle cd x gh
-        Point[5] points;
-        points[0] = point + Point(  0,  0 );  // start
-        points[1] = point + Point( cd,  0 );  // to right
-        points[2] = point + Point( cd, gh );  // to bottom
-        points[3] = point + Point(  0, gh );  // to left
-        points[4] = point + Point(  0,  0 );  // to top
-        Polyline( _hdc, cast( POINT* ) points.ptr, 5 );
+            // rectangle cd x gh
+            Point[5] points;
+            points[0] = p + Point(  0,  0 );  // start
+            points[1] = p + Point( cd,  0 );  // to right
+            points[2] = p + Point( cd, gh );  // to bottom
+            points[3] = p + Point(  0, gh );  // to left
+            points[4] = p + Point(  0,  0 );  // to top
+            Polyline( _hdc, cast( POINT* ) points.ptr, 5 );
+        }
+        else
+        {
+            RECT rect = { 
+                ot.d - cd/2, 
+                ot.h - gh/2, 
+                ot.d + cd/2, 
+                ot.h + gh/2 
+            };
+            //auto brush = CreateSolidBrush( GetDCPenColor( _hdc ) );
+            //auto brush = CreateSolidBrush( RGB( 0xCC, 0xCC, 0xCC ) );
+            auto pen = GetCurrentObject( _hdc, OBJ_PEN );
+            LOGPEN logpen;
+            GetObject( pen, logpen.sizeof, &logpen );
+            auto brush = CreateSolidBrush( logpen.lopnColor );
+            FrameRect( _hdc, &rect, brush );
+            DeleteObject( brush );
+        }
+    }
+
+
+    void rectangle( int c, int h, int d, int g )
+    {
+        import std.math : abs;
+
+        // Center ot the Vid
+        Point ot = _ras.ot;
+
+        version ( Polyline )
+        {
+            // rectangle cd x gh
+            Point[5] points;
+            points[0] = ot + Point( c, -h );  // start
+            points[1] = ot + Point( d, -h );  // to right
+            points[2] = ot + Point( d, -g );  // to bottom
+            points[3] = ot + Point( c, -g );  // to left
+            points[4] = ot + Point( c, -h );  // to top
+
+            // 
+            Polyline( _hdc, cast( POINT* ) points.ptr, 5 );
+        }
+        else
+        {
+            RECT rect = { 
+                ot.d + c, 
+                ot.h + h, 
+                ot.d + d, 
+                ot.h + g 
+            };
+            //auto brush = CreateSolidBrush( GetDCPenColor( _hdc ) );
+            //auto brush = CreateSolidBrush( RGB( 0xCC, 0xCC, 0xCC ) );
+            auto pen = GetCurrentObject( _hdc, OBJ_PEN );
+            LOGPEN logpen;
+            GetObject( pen, logpen.sizeof, &logpen );
+            auto brush = CreateSolidBrush( logpen.lopnColor );
+            FrameRect( _hdc, &rect, brush );
+            DeleteObject( brush );
+        }
     }
 
 
     void rectangleFilled( int cd, int gh, Ra ra )
     {
         // Center ot the Vid
-        Point p = _ras.ot;
+        Point ot = _ras.ot;
 
-        // top left
-        Point point = p - Point( cd / 2, gh / 2 );
+        version ( Polyline )
+        {
+            // top left
+            Point p = ot - Point( cd / 2, gh / 2 );
 
-        // rectangle cd x gh
-        Point[5] points;
-        points[0] = point + Point(  0,  0 );  // start
-        points[1] = point + Point( cd,  0 );  // to right
-        points[2] = point + Point( cd, gh );  // to bottom
-        points[3] = point + Point(  0, gh );  // to left
-        points[4] = point + Point(  0,  0 );  // to top
+            // rectangle cd x gh
+            Point[5] points;
+            points[0] = p + Point(  0,  0 );  // start
+            points[1] = p + Point( cd,  0 );  // to right
+            points[2] = p + Point( cd, gh );  // to bottom
+            points[3] = p + Point(  0, gh );  // to left
+            points[4] = p + Point(  0,  0 );  // to top
 
-        // Fill Mode
-        SetPolyFillMode( _hdc, WINDING );
-        auto brush = CreateSolidBrush( ra.windowsCOLORREF );
-        auto oldBrush = SelectObject( _hdc, brush ); 
+            // Fill Mode
+            SetPolyFillMode( _hdc, WINDING );
+            auto brush = CreateSolidBrush( ra.windowsCOLORREF );
+            auto oldBrush = SelectObject( _hdc, brush ); 
 
-        // 
-        Polygon( _hdc, cast( POINT* ) points.ptr, 5 );
+            // 
+            Polygon( _hdc, cast( POINT* ) points.ptr, 5 );
 
-        // 
-        SelectObject( _hdc, oldBrush ); 
-        DeleteObject( brush);
+            // 
+            SelectObject( _hdc, oldBrush ); 
+            DeleteObject( brush);
+        }
+        else
+        {
+            // Fill Mode
+            auto brush = CreateSolidBrush( ra.windowsCOLORREF );
+            auto oldBrush = SelectObject( _hdc, brush ); 
+
+            Rectangle( 
+                _hdc, 
+                ot.d - cd/2, 
+                ot.h - gh/2, 
+                ot.d + cd/2, 
+                ot.h + gh/2 
+            );
+
+            // 
+            SelectObject( _hdc, oldBrush ); 
+            DeleteObject( brush);
+        }
     }
 
 
@@ -960,28 +1097,82 @@ class BackBufferPen : IPen
         import std.math : abs;
 
         // Center ot the Vid
-        Point point = _ras.ot;
+        Point ot = _ras.ot;
 
-        // rectangle cd x gh
-        Point[5] points;
-        points[0] = point + Point( c, -h );  // start
-        points[1] = point + Point( d, -h );  // to right
-        points[2] = point + Point( d, -g );  // to bottom
-        points[3] = point + Point( c, -g );  // to left
-        points[4] = point + Point( c, -h );  // to top
+        version ( Polyline )
+        {
+            // rectangle cd x gh
+            Point[5] points;
+            points[0] = ot + Point( c, -h );  // start
+            points[1] = ot + Point( d, -h );  // to right
+            points[2] = ot + Point( d, -g );  // to bottom
+            points[3] = ot + Point( c, -g );  // to left
+            points[4] = ot + Point( c, -h );  // to top
 
-        // Fill Mode
-        SetPolyFillMode( _hdc, WINDING );
-        auto brush = CreateSolidBrush( ra.windowsCOLORREF );
-        auto oldBrush = SelectObject( _hdc, brush ); 
+            // Fill Mode
+            SetPolyFillMode( _hdc, WINDING );
+            auto brush = CreateSolidBrush( ra.windowsCOLORREF );
+            auto oldBrush = SelectObject( _hdc, brush ); 
 
-        // 
-        //Polyline( _hdc, points.ptr, 5 );
-        Polygon( _hdc, cast( POINT* ) points.ptr, 5 );
+            // 
+            //Polyline( _hdc, points.ptr, 5 );
+            Polygon( _hdc, cast( POINT* ) points.ptr, 5 );
 
-        // 
-        SelectObject( _hdc, oldBrush ); 
-        DeleteObject( brush);
+            // 
+            SelectObject( _hdc, oldBrush ); 
+            DeleteObject( brush);
+        }
+        else
+        {
+            // Fill Mode
+            auto brush = CreateSolidBrush( ra.windowsCOLORREF );
+            auto oldBrush = SelectObject( _hdc, brush ); 
+
+            Rectangle( 
+                _hdc, 
+                ot.d + c, 
+                ot.h + h, 
+                ot.d + d, 
+                ot.h + g 
+            );
+
+            // 
+            SelectObject( _hdc, oldBrush ); 
+            DeleteObject( brush);            
+        }
+    }
+
+
+    void symbol( wchar wc, int c, int h, int d, int g )
+    {
+        import std.math : abs;
+
+        // Center ot the Vid
+        Point ot = _ras.ot;
+
+        RECT rect = {
+            ot.d + c, 
+            ot.h + h, 
+            ot.d + d, 
+            ot.h + g 
+        };
+
+        HFONT font = Font( "Arial", abs( g ) + abs( h ) ).toWindowsFont();
+        HFONT prafont = SelectObject( _hdc, font );
+
+        ExtTextOutW(
+            _hdc,
+            rect.left,
+            rect.top,
+            0,
+            &rect,
+            cast( LPCWSTR ) &wc,
+            1,
+            NULL
+        );
+
+        SelectObject( _hdc, prafont );
+        DeleteObject( font );
     }
 
 

@@ -4,6 +4,9 @@ module ui;
 public import std.stdio  : writeln;
 public import std.conv   : to;
 public import std.format : format;
+public import std.math   : abs;
+public import std.math   : round;
+public import std.math   : floor;
 
 // Helpers
 public import ui.utf     : toLPWSTR;
@@ -22,14 +25,16 @@ public import ui.size    : Size;
 public import ui.ra      : Ra;
 public import ui.text    : TextSet;
 public import ui.point   : Point;
+public import ui.font    : Font;
 
 // Events
 public import ui.event   : MouseKeyEvent;
 public import ui.event   : MouseMoveEvent;
 public import ui.event   : KeyboardKeyEvent;
 //public import ui.vid     : process;
-public import ui.mag     : processMouseKey;
-public import ui.mag     : processMouseMove;
+public import ui.mag     : process;
+//public import ui.mag     : processMouseKey;
+//public import ui.mag     : processMouseMove;
 public import ui.keycodes;
 
 // Base classes

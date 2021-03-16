@@ -12,8 +12,10 @@ interface IPen
     void to( int cd, int gh );
     void lineTo( int cd, int gh );
     void rectangle( int cd, int gh );
+    void rectangle( int c, int h, int d, int g );
     void rectangleFilled( int cd, int gh, Ra ra );
     void rectangleFilled( int c, int h, int d, int g, Ra ra );
+    void symbol( wchar wc, int c, int h, int d, int g );
     void text( string s, int cd, int gh, ref TextSet textSet );
     ref uint cd();
     ref uint gh();
@@ -63,6 +65,12 @@ class Pen : IPen
     }
 
 
+    void rectangle( int c, int h, int d, int g )
+    {
+        //
+    }
+
+
     void rectangleFilled( int cd, int gh, Ra ra )
     {
         //
@@ -70,6 +78,12 @@ class Pen : IPen
 
 
     void rectangleFilled( int c, int h, int d, int g, Ra ra )
+    {
+        //
+    }
+
+
+    void symbol( wchar wc, int c, int h, int d, int g )
     {
         //
     }

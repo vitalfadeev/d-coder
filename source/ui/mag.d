@@ -3,57 +3,16 @@ module ui.mag;
 import ui;
 
 
-interface IMag
-{
-    ref ubyte mc();
-    ref ubyte md();
-    //ubyte mg();
-    //ubyte mh();
-    bool stable();
-}
-
-
-class Mag : IMag
-{
-    ubyte _mc;
-    ubyte _md;
-
-    ref ubyte mc()
-    {
-        return _mc;
-    }
-
-
-    ref ubyte md()
-    {
-        return _md;
-    }
-
-
-    bool stable()
-    {
-        return false;
-    }
-}
-
-
-void setMags( Object[] mags )
-{
-    //
-}
-
-
-alias ubyte POWER;
-alias int   POS;
+alias byte POWER;
+alias int  POS;
 
 
 struct TMag
 {
-    POWER mc;    // power
-    POWER md;
-    bool  stable;
+    bool  stan;
+    POWER c;    // m-power: -127..+127
+    POWER d;
 
-    POS cd;      // px, width,  center at otd
     POS gh;      // px, height, center at oth
 
     POS otd;     // px, center: relative from the parent center
@@ -69,9 +28,16 @@ struct TMag
 
     void delegate( IRas ras ) _vid;
     bool delegate( Point p )  _hitTest;
-    void delegate( ref MouseKeyEvent event )  _processMouseKey;
-    void delegate( ref MouseMoveEvent event ) _processMouseMove;
+    void delegate( ref MouseKeyEvent    event ) _processMouseKey;
+    void delegate( ref MouseMoveEvent   event ) _processMouseMove;
+    void delegate( ref KeyboardKeyEvent event ) _processKeyboardKey;
 
+
+    // px, width,  center at otd
+    POS cd()
+    {
+        return abs( d ) + abs( c );
+    }
 
     void setvos()
     {
@@ -88,7 +54,19 @@ struct TMag
         // pen.lineTo()
         // pen.rect()
         // pen.text()
+        vid_center( ras );
         vid_border( ras );
+        //vid_symbol( ras );
+    }
+
+
+    /** */
+    void vid_center( IRas ras )
+    {
+        auto pen = ras.pen;
+        pen.ra( 0xCCCCCC.rgb, 3 );
+        pen.to( 0, 0 );  // center
+        pen.rectangle( 1, 1 );
     }
 
 
@@ -96,9 +74,40 @@ struct TMag
     void vid_border( IRas ras )
     {
         auto pen = ras.pen;
+        
+        pen.to( 0, 0 );  // center
+
+        // c
+        if ( c == 0 )
+            pen.ra( 0xCCCCCC.rgb, 3 );
+        else
+        if ( c < 0 )
+            pen.ra( 0x0000CC.rgb, 3 );
+        else // c > 0
+            pen.ra( 0xCC0000.rgb, 3 );
+
+        pen.rectangle( -abs( cast( int ) c ), -gh/2, 0,  gh/2 );
+
+        // d
+        if ( d == 0 )
+            pen.ra( 0xCCCCCC.rgb, 3 );
+        else
+        if ( d < 0 )
+            pen.ra( 0x0000CC.rgb, 3 );
+        else // d > 0
+            pen.ra( 0xCC0000.rgb, 3 );
+
+        pen.rectangle( 0, -gh/2, abs( d ),  gh/2 );
+    }
+
+
+    /** */
+    void vid_symbol( IRas ras )
+    {
+        auto pen = ras.pen;
         pen.ra( 0xCCCCCC.rgb, 3 );
         pen.to( 0, 0 );  // center
-        pen.rectangle( cd, gh );
+        pen.symbol( 'A', c, -gh/2, d, gh/2 );
     }
 
 
@@ -111,13 +120,19 @@ struct TMag
     }
 
 
-    void processMouseKey( ref MouseKeyEvent event )
+    void process( ref MouseKeyEvent event )
     {
         //
     }
 
 
-    void processMouseMove( ref MouseMoveEvent event )
+    void process( ref MouseMoveEvent event )
+    {
+        //
+    }
+
+
+    void process( ref KeyboardKeyEvent event )
     {
         //
     }
@@ -183,8 +198,9 @@ TMag* CR( T = TMag )()
         live     = true;
         _vid     = &( cast( T* ) oPtr ).vid;
         _hitTest = &( cast( T* ) oPtr ).hitTest;
-        _processMouseKey  = &( cast( T* ) oPtr ).processMouseKey;
-        _processMouseMove = &( cast( T* ) oPtr ).processMouseMove;
+        _processMouseKey    = &( cast( T* ) oPtr ).process;
+        _processMouseMove   = &( cast( T* ) oPtr ).process;
+        _processKeyboardKey = &( cast( T* ) oPtr ).process;
     }
 
     return oPtr;
@@ -196,25 +212,22 @@ TMagsRegistry magsRegistry;
 
 void set()
 {
-    import std.math : round;
-
     float[] powers;
     auto magnets = magsRegistry.used;
     powers.length = magnets.length;
 
     float power;
 
-    float maxPower = 100;
-    //foreach ( mag; magnets )
-    //    maxPower = max( maxPower, ( cast( IMagnet ) mag ).cPower, ( cast( IMagnet ) mag ).dPower );
+    float maxpower = 0;
 
     // calc powers
     foreach ( i, ref mag; magnets )
     {
-        // skip stable
-        if ( mag.stable )
+        // skip stan
+        if ( mag.stan )
         {
             // skip
+            powers[ i ] = 0;
         }
         else // dynamic
         {
@@ -236,40 +249,106 @@ void set()
                     {
                         // skip
                     }
-                    else // _mag -> mag
+                    else // _mag -> mag .......
                     if ( distance > 0 )
                     {
-                        power += 
-                            ( maxPower * maxPower ) 
-                            * cast( float ) _mag.md 
-                            / ( distance * distance );
+                        // +c +d
+                        if ( mag.c >= 0 && _mag.d >= 0 )
+                            power += cast( float ) ( abs( mag.c + _mag.d ) ) / abs( distance );
+                        else // -c -d
+                        if ( mag.c < 0  && _mag.d < 0 )
+                            power += cast( float ) ( abs( mag.c + _mag.d ) ) / abs( distance );
+                        else // -c +d
+                        if ( mag.c < 0  && _mag.d >= 0 )
+                            power += cast( float ) ( abs( mag.c + _mag.d ) ) - abs( distance );
+                        else // +c -d
+                        if ( mag.c >= 0 && _mag.d < 0 )
+                            power += cast( float ) ( abs( mag.c + _mag.d ) ) - abs( distance );
                     }
-                    else // mag <- _mag
+                    else // ....... mag <- _mag
                     {
-                        power -= 
-                            ( maxPower * maxPower ) 
-                            * cast( float ) _mag.mc 
-                            / ( distance * distance );
+                        // +d +c 
+                        if ( mag.d >= 0 && _mag.c >= 0 )
+                            power -= cast( float ) ( abs( mag.d + _mag.c ) ) / abs( distance );
+                        else // -d -c
+                        if ( mag.d < 0  && _mag.c < 0 )
+                            power -= cast( float ) ( abs( mag.d + _mag.c ) ) / abs( distance );
+                        else // -d +c 
+                        if ( mag.d < 0  && _mag.c >= 0 )
+                            power -= cast( float ) ( abs( mag.d + _mag.c ) ) - abs( distance );
+                        else // +d -c
+                        if ( mag.d >= 0 && _mag.c < 0 )
+                            power -= cast( float ) ( abs( mag.d + _mag.c ) ) - abs( distance );
                     }
                 }
             }
 
             powers[ i ] = power;
+            maxpower = max( maxpower, abs( power ) );
         }
     }
 
-    // do power
-    //writeln( "powers: ", powers );
-    foreach ( i, ref mag; magnets )
+    // min. for prevent 1px tremor
+    if ( maxpower > 1 )
     {
-        // skip stable
-        if ( mag.stable )
+        maxpower = 1; // jump
+    }
+    else
+    if ( maxpower < 0.016 )
+    {
+        maxpower = 0;
+    }
+    else
+    {
+        maxpower /= 10;
+    }
+
+    //
+    if ( maxpower == 0 )
+    {
+        // balance. skip
+    }
+    else
+    {
+        TMag* cmag;
+        TMag* dmag;
+
+        // do power
+        writeln( "powers: ", powers );
+        foreach ( i, ref mag; magnets )
         {
-            // skip
-        }
-        else
-        {
-            mag.otd = mag.otd + powers[ i ].round().to!int;
+            // skip stan
+            if ( mag.stan )
+            {
+                // skip
+            }
+            else
+            {
+                mag.otd += ( powers[ i ] / maxpower ).round().to!POS;
+
+
+                //// prevent over
+                //if ( i > 0 )
+                //    cmag = magnets[ i - 1 ];
+                //else
+                //    cmag = null;
+                
+                //if ( i < magnets.length - 2 )
+                //    dmag = magnets[ i + 1 ];
+                //else
+                //    dmag = null;
+
+
+                //POS otd = mag.otd + ( powers[ i ] / maxpower ).round().to!POS;
+
+                //if ( cmag !is null && dmag !is null )
+                //{
+                //    if ( cmag.otd < otd && otd < dmag.otd )
+                //        mag.otd = otd;
+                //}
+                //else
+                //    mag.otd = otd;
+            }
         }
     }
 }
@@ -287,7 +366,7 @@ void vid( IRas ras )
 }
 
 
-void processMouseKey( ref MouseKeyEvent event )
+void process( ref MouseKeyEvent event )
 {
     auto to = event.to;
 
@@ -306,7 +385,7 @@ void processMouseKey( ref MouseKeyEvent event )
 }
 
 
-void processMouseMove( ref MouseMoveEvent event )
+void process( ref MouseMoveEvent event )
 {
     auto to = event.to;
 
@@ -325,6 +404,23 @@ void processMouseMove( ref MouseMoveEvent event )
 }
 
 
+void process( ref KeyboardKeyEvent event )
+{
+    // Global hotkey
+    if ( event.code == VK_ESCAPE )
+    {
+        import app : exit;
+        exit();
+    }
+
+    // Mag's hotkey
+    foreach ( ref mag; magsRegistry.used )
+    {
+        mag._processKeyboardKey( event );
+    }
+}
+
+
 struct TBox
 {
     TMag _mag;
@@ -335,6 +431,17 @@ struct TBox
     {
         vid_border( ras );
         vid_fill( ras );
+        vid_center( ras );
+    }
+
+
+    /** */
+    void vid_center( IRas ras )
+    {
+        auto pen = ras.pen;
+        pen.ra( 0xCCCCCC.rgb, 3 );
+        pen.to( 0, 0 );  // center
+        pen.rectangle( 1, 1 );
     }
 
 
@@ -342,13 +449,13 @@ struct TBox
     void vid_border( IRas ras )
     {
         auto pen = ras.pen;
-        if ( md == 0 )
+        if ( d == 0 )
             pen.ra( 0xCCCCCC.rgb, 3 );
         else
-        if ( md > 0 )
+        if ( d > 0 )
             pen.ra( 0xCC0000.rgb, 3 );
         else
-        if ( md < 0 )
+        if ( d < 0 )
             pen.ra( 0x0000CC.rgb, 3 );
 
         pen.to( 0, 0 );  // center
@@ -360,30 +467,37 @@ struct TBox
     void vid_fill( IRas ras )
     {
         auto pen = ras.pen;
-        if ( md == 0 )
-            pen.rectangleFilled( cd, md*2, 0xCCCCCC.rgb );
+        if ( d == 0 )
+            pen.rectangleFilled( cd, d*2, 0xCCCCCC.rgb );
         else
-        if ( md > 0 )
-            pen.rectangleFilled( cd, md*2, 0xCC0000.rgb );
+        if ( d > 0 )
+            pen.rectangleFilled( cd, d*2, 0xCC0000.rgb );
         else
-        if ( md < 0 )
-            pen.rectangleFilled( cd, md*2, 0x0000CC.rgb );
+        if ( d < 0 )
+            pen.rectangleFilled( cd, d*2, 0x0000CC.rgb );
     }
 
 
-    void processMouseKey( ref MouseKeyEvent event )
+    void process( ref MouseKeyEvent event )
     {
-        this.mc = event.to.h.to!ubyte;
-        this.md = event.to.h.to!ubyte;
+        this.c = abs( event.to.h ).to!POWER;
+        this.d = abs( event.to.h ).to!POWER;
     }
 
 
-    void processMouseMove( ref MouseMoveEvent event )
+    void process( ref MouseMoveEvent event )
     {
-        this.mc = event.to.h.to!ubyte;
-        this.md = event.to.h.to!ubyte;
+        this.c = abs( event.to.h ).to!POWER;
+        this.d = abs( event.to.h ).to!POWER;
+    }
+
+
+    void process( ref KeyboardKeyEvent event )
+    {
+        //
     }
 }
+
 
 // |           |
 // |           | 
@@ -394,26 +508,42 @@ struct TBox
 void mag_app()
 {
     auto cBar = CR!TBox();
-    auto dBar = CR!TBox();
-    auto m1   = CR();
 
     cBar.otd = -200;
-    cBar.md  =  50;    
-    cBar.cd  =  30;
-    cBar.gh  =  200;
-    cBar.stable = true;
+    cBar.c   =  20;
+    cBar.d   =  20;
+    cBar.gh  = 200;
+    cBar.stan = true;
 
+    auto m1 = CR();
+    m1.otd = 0;
+    m1.c   = -1;
+    m1.d   = 10;
+    m1.gh  = 100;
+
+    auto m2 = CR();
+    m2.otd = 2;
+    m2.c   = 10;
+    m2.d   = 10;
+    m2.gh  = 100;
+
+    auto m3 = CR();
+    m3.otd = 40;
+    m3.c   = 10;
+    m3.d   = 10;
+    m3.gh  = 100;
+
+    auto m4 = CR();
+    m4.otd = 60;
+    m4.c   = 10;
+    m4.d   = 10;
+    m4.gh  = 100;
+
+    auto dBar = CR!TBox();
     dBar.otd = 200;
-    dBar.mc  =  50;
-    dBar.cd  =  30;
+    dBar.c   =  10;
+    dBar.d   =  10;
     dBar.gh  =  200;
-    dBar.stable = true;
-
-    m1.md = 50;
-    m1.mc = 50;
-    m1.cd = 100;
-    m1.gh = 100;
-
-    set();
+    dBar.stan = true;
 }
 
