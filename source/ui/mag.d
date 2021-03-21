@@ -212,142 +212,112 @@ TMagsRegistry magsRegistry;
 
 void set()
 {
-    float[] powers;
+    import std.algorithm : sum;
+    import std.algorithm : map;
+    import std.array     : array;
+    import std.math      : isInfinity;
+    import std.math      : isFinite;
+    import std.math      : isNaN;
+    import std.range     : lockstep;
+    import std.range     : zip;
+
+
     auto magnets = magsRegistry.used;
-    powers.length = magnets.length;
 
-    float power;
-
-    float maxpower = 0;
-
-    // calc powers
-    foreach ( i, ref mag; magnets )
+    // 3 and more
+    if ( magnets.length >= 3 )
     {
-        // skip stan
-        if ( mag.stan )
-        {
-            // skip
-            powers[ i ] = 0;
-        }
-        else // dynamic
-        {
-            power = 0;
+        // Phase 1. Calc powers
+        int[] powers;
+        powers.length = magnets.length;
 
-            foreach ( ref _mag; magnets )
+        POS[] offsets;
+        offsets.length = magnets.length;
+
+        auto cmag   = magnets.ptr;
+        auto mag    = magnets.ptr + 1;
+        auto end    = magnets.ptr + magnets.length;
+        auto power  = powers.ptr;
+        auto offset = offsets.ptr;
+
+        POS  totalOffsets = 0;
+        int  totalPower = 0;
+
+        POS  ofs;
+        int  pwr;
+
+        POS  cmag_d, mag_c;
+
+        for ( ; mag != end ; cmag += 1, mag += 1, power += 1, offset += 1 )
+        {
+            cmag_d = ( *cmag ).d;
+            mag_c  = ( *mag ).c;
+
+            // cmag -> mag
+            // ++
+            if ( cmag_d > 0 && mag_c > 0 )
             {
-                // skip self
-                if ( mag is _mag )
+                pwr = cmag_d + mag_c;
+                *power = pwr;
+                totalPower += pwr;
+            }
+
+            else // --
+            if ( cmag_d < 0 && mag_c < 0 )
+            {
+                pwr = abs( cmag_d + mag_c );
+                *power = pwr;
+                totalPower += pwr;
+            }
+
+            else // +-
+            if ( cmag_d >= 0 && mag_c <= 0 )
+            {
+                ofs = max( cmag_d, abs( mag_c ) );
+                *offset = ofs;
+                totalOffsets += ofs;
+            }
+
+            else // -+
+            if ( cmag_d <= 0 && mag_c >= 0 )
+            {
+                ofs = max( abs( cmag_d ), mag_c );
+                *offset = ofs;
+                totalOffsets += ofs;
+            }
+        }
+
+
+        // Phase 2. Set positions
+        POS totalDistance = magnets[ $-1 ].otd - magnets[ 0 ].otd - totalOffsets;        
+
+        if ( totalDistance > 0 )
+        {
+            POS cmag_otd = magnets[ 0 ].otd;
+
+            foreach ( ref mag, p, o; lockstep( magnets[ 1.. $ ], powers, offsets ) )
+            {
+                if ( mag.stan )
                 {
                     // skip
+                    cmag_otd = mag.otd;
                 }
                 else
                 {
-                    auto distance = mag.otd - _mag.otd;
-
-                    // mag == _mag
-                    if ( distance == 0 )
+                    if ( p != 0 )
                     {
-                        // skip
+                        cmag_otd += 
+                            round( 
+                                ( ( cast( float ) p ) / totalPower ) * totalDistance
+                            ).to!POS;
+                        mag.otd = cmag_otd;
                     }
-                    else // _mag -> mag .......
-                    if ( distance > 0 )
+                    else
                     {
-                        // +c +d
-                        if ( mag.c >= 0 && _mag.d >= 0 )
-                            power += cast( float ) ( abs( mag.c + _mag.d ) ) / abs( distance );
-                        else // -c -d
-                        if ( mag.c < 0  && _mag.d < 0 )
-                            power += cast( float ) ( abs( mag.c + _mag.d ) ) / abs( distance );
-                        else // -c +d
-                        if ( mag.c < 0  && _mag.d >= 0 )
-                            power += cast( float ) ( abs( mag.c + _mag.d ) ) - abs( distance );
-                        else // +c -d
-                        if ( mag.c >= 0 && _mag.d < 0 )
-                            power += cast( float ) ( abs( mag.c + _mag.d ) ) - abs( distance );
-                    }
-                    else // ....... mag <- _mag
-                    {
-                        // +d +c 
-                        if ( mag.d >= 0 && _mag.c >= 0 )
-                            power -= cast( float ) ( abs( mag.d + _mag.c ) ) / abs( distance );
-                        else // -d -c
-                        if ( mag.d < 0  && _mag.c < 0 )
-                            power -= cast( float ) ( abs( mag.d + _mag.c ) ) / abs( distance );
-                        else // -d +c 
-                        if ( mag.d < 0  && _mag.c >= 0 )
-                            power -= cast( float ) ( abs( mag.d + _mag.c ) ) - abs( distance );
-                        else // +d -c
-                        if ( mag.d >= 0 && _mag.c < 0 )
-                            power -= cast( float ) ( abs( mag.d + _mag.c ) ) - abs( distance );
+                        cmag_otd += o;
+                        mag.otd = cmag_otd;
                     }
                 }
-            }
-
-            powers[ i ] = power;
-            maxpower = max( maxpower, abs( power ) );
-        }
-    }
-
-    // min. for prevent 1px tremor
-    if ( maxpower > 1 )
-    {
-        maxpower = 1; // jump
-    }
-    else
-    if ( maxpower < 0.016 )
-    {
-        maxpower = 0;
-    }
-    else
-    {
-        maxpower /= 10;
-    }
-
-    //
-    if ( maxpower == 0 )
-    {
-        // balance. skip
-    }
-    else
-    {
-        TMag* cmag;
-        TMag* dmag;
-
-        // do power
-        writeln( "powers: ", powers );
-        foreach ( i, ref mag; magnets )
-        {
-            // skip stan
-            if ( mag.stan )
-            {
-                // skip
-            }
-            else
-            {
-                mag.otd += ( powers[ i ] / maxpower ).round().to!POS;
-
-
-                //// prevent over
-                //if ( i > 0 )
-                //    cmag = magnets[ i - 1 ];
-                //else
-                //    cmag = null;
-                
-                //if ( i < magnets.length - 2 )
-                //    dmag = magnets[ i + 1 ];
-                //else
-                //    dmag = null;
-
-
-                //POS otd = mag.otd + ( powers[ i ] / maxpower ).round().to!POS;
-
-                //if ( cmag !is null && dmag !is null )
-                //{
-                //    if ( cmag.otd < otd && otd < dmag.otd )
-                //        mag.otd = otd;
-                //}
-                //else
-                //    mag.otd = otd;
             }
         }
     }
@@ -480,15 +450,15 @@ struct TBox
 
     void process( ref MouseKeyEvent event )
     {
-        this.c = abs( event.to.h ).to!POWER;
-        this.d = abs( event.to.h ).to!POWER;
+        this.c = event.to.h.to!POWER;
+        this.d = event.to.h.to!POWER;
     }
 
 
     void process( ref MouseMoveEvent event )
     {
-        this.c = abs( event.to.h ).to!POWER;
-        this.d = abs( event.to.h ).to!POWER;
+        this.c = event.to.h.to!POWER;
+        this.d = event.to.h.to!POWER;
     }
 
 
@@ -510,14 +480,14 @@ void mag_app()
     auto cBar = CR!TBox();
 
     cBar.otd = -200;
-    cBar.c   =  20;
-    cBar.d   =  20;
+    cBar.c   = 20;
+    cBar.d   = 20;
     cBar.gh  = 200;
     cBar.stan = true;
 
     auto m1 = CR();
     m1.otd = 0;
-    m1.c   = -1;
+    m1.c   = 10;
     m1.d   = 10;
     m1.gh  = 100;
 
@@ -526,6 +496,7 @@ void mag_app()
     m2.c   = 10;
     m2.d   = 10;
     m2.gh  = 100;
+    //m2.stan = true;
 
     auto m3 = CR();
     m3.otd = 40;
@@ -541,8 +512,8 @@ void mag_app()
 
     auto dBar = CR!TBox();
     dBar.otd = 200;
-    dBar.c   =  10;
-    dBar.d   =  10;
+    dBar.c   = 20;
+    dBar.d   = 20;
     dBar.gh  =  200;
     dBar.stan = true;
 }

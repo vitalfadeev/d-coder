@@ -28,7 +28,7 @@ class OSWindow : IRas
         _gh = gh;
         _createOSWindowClass();
         _createOSWindow();
-        _setTimer();
+        //_setTimer();
     }
 
 
@@ -358,6 +358,7 @@ private:
                         process( event );
 
                         // update window
+                        RedrawWindow( hwnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW );
                         //InvalidateRect( hwnd, NULL, 0 );
                         //UpdateWindow( hwnd );
 
@@ -410,6 +411,7 @@ private:
                         process( event );
 
                         // update window
+                        RedrawWindow( hwnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW );
                         //InvalidateRect( hwnd, NULL, 0 );
                         //UpdateWindow( hwnd );
 
