@@ -32,6 +32,11 @@ struct TMag
     void delegate( ref MouseMoveEvent   event ) _processMouseMove;
     void delegate( ref KeyboardKeyEvent event ) _processKeyboardKey;
 
+    // For fast calculation in set()
+    // ...for prevent memory allocation, reserve space here
+    // ...for useing CPU cache
+    int _power;
+    POS _offset;
 
     // px, width,  center at otd
     POS cd()
@@ -228,37 +233,32 @@ void set()
     if ( magnets.length >= 3 )
     {
         // Phase 1. Calc powers
-        int[] powers;
-        powers.length = magnets.length;
-
-        POS[] offsets;
-        offsets.length = magnets.length;
-
-        auto cmag   = magnets.ptr;
-        auto mag    = magnets.ptr + 1;
-        auto end    = magnets.ptr + magnets.length;
-        auto power  = powers.ptr;
-        auto offset = offsets.ptr;
-
         POS  totalOffsets = 0;
-        int  totalPower = 0;
+        int  totalPower   = 0;
+        POS  totalDistance;
+
+        auto cmag = magnets[ 0 ];
+        auto cStan = cmag;
 
         POS  ofs;
         int  pwr;
 
         POS  cmag_d, mag_c;
 
-        for ( ; mag != end ; cmag += 1, mag += 1, power += 1, offset += 1 )
+        size_t cStanIdx = 0;
+
+        foreach ( i, mag; magnets[ cStanIdx+1 .. $ ] )
         {
-            cmag_d = ( *cmag ).d;
-            mag_c  = ( *mag ).c;
+            cmag_d = cmag.d;
+            mag_c  = mag.c;
 
             // cmag -> mag
             // ++
             if ( cmag_d > 0 && mag_c > 0 )
             {
                 pwr = cmag_d + mag_c;
-                *power = pwr;
+                mag._power  = pwr;
+                mag._offset = 0;
                 totalPower += pwr;
             }
 
@@ -266,7 +266,8 @@ void set()
             if ( cmag_d < 0 && mag_c < 0 )
             {
                 pwr = abs( cmag_d + mag_c );
-                *power = pwr;
+                mag._power  = pwr;
+                mag._offset = 0;
                 totalPower += pwr;
             }
 
@@ -274,7 +275,8 @@ void set()
             if ( cmag_d >= 0 && mag_c <= 0 )
             {
                 ofs = max( cmag_d, abs( mag_c ) );
-                *offset = ofs;
+                mag._power  = 0;
+                mag._offset = ofs;
                 totalOffsets += ofs;
             }
 
@@ -282,44 +284,49 @@ void set()
             if ( cmag_d <= 0 && mag_c >= 0 )
             {
                 ofs = max( abs( cmag_d ), mag_c );
-                *offset = ofs;
+                mag._power  = 0;
+                mag._offset = ofs;
                 totalOffsets += ofs;
             }
-        }
 
-
-        // Phase 2. Set positions
-        POS totalDistance = magnets[ $-1 ].otd - magnets[ 0 ].otd - totalOffsets;        
-
-        if ( totalDistance > 0 )
-        {
-            POS cmag_otd = magnets[ 0 ].otd;
-
-            foreach ( ref mag, p, o; lockstep( magnets[ 1.. $ ], powers, offsets ) )
+            // stan
+            // Find stable magnet. Set positions.
+            if ( mag.stan )
             {
-                if ( mag.stan )
+                // Phase 2. Set positions
+                totalDistance = mag.otd - cStan.otd - totalOffsets;
+
+                if ( totalDistance > 0 )
                 {
-                    // skip
-                    cmag_otd = mag.otd;
-                }
-                else
-                {
-                    if ( p != 0 )
+                    POS cmag_otd = cStan.otd;
+
+                    // From stan to stan
+                    foreach ( m; magnets[ cStanIdx+1 .. i+1 ] )
                     {
-                        cmag_otd += 
-                            round( 
-                                ( ( cast( float ) p ) / totalPower ) * totalDistance
-                            ).to!POS;
-                        mag.otd = cmag_otd;
-                    }
-                    else
-                    {
-                        cmag_otd += o;
-                        mag.otd = cmag_otd;
+                        if ( m._power != 0 )
+                        {
+                            cmag_otd += 
+                                round( 
+                                    ( ( cast( float ) m._power ) / totalPower ) * totalDistance
+                                ).to!POS;
+                            m.otd = cmag_otd;
+                        }
+                        else
+                        {
+                            cmag_otd += m._offset;
+                            m.otd = cmag_otd;
+                        }
                     }
                 }
-            }
-        }
+
+                cStan        = mag;
+                cStanIdx     = i+1;
+                totalOffsets = 0;
+                totalPower   = 0;
+            } // if stan
+
+            cmag = mag;
+        } // foreach
     }
 }
 
@@ -486,7 +493,7 @@ void mag_app()
     cBar.stan = true;
 
     auto m1 = CR();
-    m1.otd = 0;
+    m1.otd = -100;
     m1.c   = 10;
     m1.d   = 10;
     m1.gh  = 100;
@@ -496,7 +503,7 @@ void mag_app()
     m2.c   = 10;
     m2.d   = 10;
     m2.gh  = 100;
-    //m2.stan = true;
+    m2.stan = true;
 
     auto m3 = CR();
     m3.otd = 40;
